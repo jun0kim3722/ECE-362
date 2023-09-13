@@ -60,8 +60,8 @@ extern void fill_alpha();
 
 int main(void) {
     // check_wiring();
-    autotest();
-    // fill_alpha();
+//    autotest();
+//    fill_alpha();
     enable_ports();
     setup_tim6();
     setup_tim7();
@@ -251,7 +251,21 @@ void setup_tim7() {
  * 
  */
 void write_display() {
-
+    if (mode == 'C') {
+        snprintf(disp, 9, "Crashed");
+    }
+    else if (mode == 'L') {
+        snprintf(disp, 9, "Landed ");
+    }
+    else if (mode == 'A') {
+        snprintf(disp, 9, "ALt%5d", alt);
+    }
+    else if (mode == 'B') {
+        snprintf(disp, 9, "FUEL %3d", fuel);
+    }
+    else if (mode == 'D') {
+        snprintf(disp, 9, "Spd %4d", velo);
+    }
 }
 
 /**
@@ -259,13 +273,32 @@ void write_display() {
  * 
  */
 void update_variables() {
-
+    fuel -= thrust;
+    if (fuel <= 0) {
+        thrust = 0;
+        fuel = 0;
+    }
+    alt += velo;
+    if (alt <= 0) {
+        if (-velo < 10) {
+            mode = 'L';
+        }
+        else {
+            mode = 'C';
+        }
+        return;
+    }
+    velo += thrust - 5;
 }
 
 //-------------------------------
 // Timer 14 ISR goes here
 //-------------------------------
-// TODO
+void TIM14_IRQHandler() {
+    TIM14 -> SR &= ~TIM_SR_UIF;
+    update_variables();
+    write_display();
+}
 
 /**
  * @brief Setup timer 14 as described in lab
@@ -273,5 +306,10 @@ void update_variables() {
  * 
  */
 void setup_tim14() {
-
+    RCC -> APB1ENR |= RCC_APB1ENR_TIM14EN;
+    TIM14 -> PSC = 48000 - 1;
+    TIM14 -> ARR = 500 - 1;
+    TIM14 -> DIER |= TIM_DIER_UIE;
+    TIM14 -> CR1 |= TIM_CR1_CEN;
+    NVIC -> ISER[0] = 1 << TIM14_IRQn;
 }
